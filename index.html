@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 시장 생존 게임</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        .login-box {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00d4ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #00d4ff, #00ff88);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: none;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .game-screen {
+            display: none;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .profit {
+            color: #00ff88;
+        }
+
+        .loss {
+            color: #ff4757;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-section, .trading-section {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stock-list {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stock-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .stock-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #00d4ff;
+        }
+
+        .stock-item.selected {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .stock-info {
+            flex: 1;
+        }
+
+        .stock-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stock-price {
+            font-size: 1.2em;
+            margin: 5px 0;
+        }
+
+        .stock-change {
+            font-size: 0.9em;
+        }
+
+        .indicators {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .trading-controls {
+            display: grid;
+            gap: 10px;
+        }
+
+        .trade-input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .trade-input-group input {
+            flex: 1;
+        }
+
+        .trade-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .buy-btn {
+            background: linear-gradient(45deg, #00ff88, #00d4ff);
+        }
+
+        .sell-btn {
+            background: linear-gradient(45deg, #ff4757, #ff6348);
+        }
+
+        .portfolio {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .portfolio-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .event-log {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .event-positive {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 3px solid #00ff88;
+        }
+
+        .event-negative {
+            background: rgba(255, 71, 87, 0.1);
+            border-left: 3px solid #ff4757;
+        }
+
+        .event-neutral {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #999;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #1a1a2e;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+
+        .ranking-medal {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(45deg, #00d4ff, #00ff88);
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+            }
+
+            .stat-card {
+                width: 100%;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .leverage-selector, .ai-config {
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        canvas {
+            max-height: 400px;
+        }
+
+        .room-code-display {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff88;
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .opponent-list {
+            margin-top: 20px;
+        }
+
+        .opponent-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <!-- 로그인 화면 -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-box">
+            <h1>📈 주식 시장 생존 게임</h1>
+            <p style="margin-bottom: 30px; color: #999;">30일 동안 자산을 늘려보세요!</p>
+            
+            <input type="text" id="playerName" placeholder="이름을 입력하세요" maxlength="20">
+            
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="showModeTab('single')">싱글 플레이</button>
+                <button class="tab-btn" onclick="showModeTab('multi')">친구 대결</button>
+                <button class="tab-btn" onclick="showModeTab('ai')">AI 대전</button>
+            </div>
+
+            <div id="singleMode" class="mode-section">
+                <button onclick="startGame('single')">게임 시작</button>
+            </div>
+
+            <div id="multiMode" class="mode-section hidden">
+                <button onclick="createRoom()">방 만들기</button>
+                <input type="text" id="roomCodeInput" placeholder="방 코드 입력 (4자리)" maxlength="4">
+                <button onclick="joinRoom()">방 참여하기</button>
+            </div>
+
+            <div id="aiMode" class="mode-section hidden">
+                <select id="aiDifficulty">
+                    <option value="beginner">초보 AI</option>
+                    <option value="intermediate">중급 AI</option>
+                    <option value="expert">전문가 AI</option>
+                </select>
+                <select id="aiStyle">
+                    <option value="buffett">워렌 버핏 스타일</option>
+                    <option value="lynch">피터 린치 스타일</option>
+                    <option value="trader">급진적 트레이더</option>
+                </select>
+                <button onclick="startGame('ai')">AI 대전 시작</button>
+            </div>
+
+            <button onclick="showRankings()" style="margin-top: 20px; background: rgba(255,255,255,0.1);">🏆 랭킹 보기</button>
+        </div>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="gameScreen" class="game-screen">
+        <div class="container">
+            <div class="header">
+                <div class="stat-card">
+                    <div class="stat-label">플레이어</div>
+                    <div class="stat-value" id="playerNameDisplay">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Day</div>
+                    <div class="stat-value" id="currentDay">1</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">총 자산</div>
+                    <div class="stat-value" id="totalAssets">10,000,000원</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">수익률</div>
+                    <div class="stat-value" id="returnRate">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">거래 횟수</div>
+                    <div class="stat-value" id="tradeCount">0/20</div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="chart-section">
+                    <h2>주가 차트</h2>
+                    <canvas id="priceChart"></canvas>
+                    <div id="stockList" class="stock-list"></div>
+                </div>
+
+                <div class="trading-section">
+                    <h2>거래</h2>
+                    <div id="selectedStockInfo">주식을 선택하세요</div>
+                    
+                    <div class="trading-controls">
+                        <div class="leverage-selector">
+                            <label>레버리지:</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="leverage" value="1" checked> 1배</label>
+                                <label><input type="radio" name="leverage" value="1.5"> 1.5배</label>
+                                <label><input type="radio" name="leverage" value="2"> 2배</label>
+                            </div>
+                        </div>
+
+                        <div class="trade-input-group">
+                            <input type="number" id="tradeAmount" placeholder="수량" min="1">
+                            <button onclick="setMaxAmount()">최대</button>
+                        </div>
+
+                        <div class="trade-buttons">
+                            <button class="buy-btn" onclick="executeTrade('buy')">매수</button>
+                            <button class="sell-btn" onclick="executeTrade('sell')">매도</button>
+                        </div>
+
+                        <button onclick="executeTrade('short')" style="background: linear-gradient(45deg, #9c27b0, #673ab7); margin-top: 10px;">공매도</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="portfolio">
+                <h2>포트폴리오</h2>
+                <div>현금: <span id="cash">10,000,000원</span></div>
+                <div id="portfolioList"></div>
+            </div>
+
+            <div class="event-log">
+                <h2>시장 이벤트</h2>
+                <div id="eventList"></div>
+            </div>
+
+            <div id="opponentSection" class="hidden">
+                <div class="portfolio">
+                    <h2>상대방 현황</h2>
+                    <div id="opponentList" class="opponent-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달들 -->
+    <div id="rankingModal" class="modal">
+        <div class="modal-content">
+            <h2>🏆 랭킹</h2>
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="showRankingTab('overall')">종합</button>
+                <button class="tab-btn" onclick="showRankingTab('weekly')">주간</button>
+                <button class="tab-btn" onclick="showRankingTab('friends')">친구</button>
+            </div>
+            <div id="rankingContent"></div>
+            <button onclick="closeModal('rankingModal')">닫기</button>
+        </div>
+    </div>
+
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <h2>게임 종료!</h2>
+            <div id="resultContent"></div>
+            <canvas id="resultChart"></canvas>
+            <button onclick="location.reload()">다시 시작</button>
+        </div>
+    </div>
+
+    <div id="roomWaitModal" class="modal">
+        <div class="modal-content">
+            <h2>대기실</h2>
+            <div class="room-code-display" id="roomCodeDisplay"></div>
+            <p>친구에게 이 코드를 공유하세요!</p>
+            <div id="roomPlayerList"></div>
+            <button onclick="startMultiplayerGame()">게임 시작</button>
+            <button onclick="closeModal('roomWaitModal')">취소</button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase 설정
+        const firebaseConfig = {
+  apiKey: "AIzaSyD4dXEjB7jIBGg1tdF6FxoV-AKw7UhyJac",
+  authDomain: "stock-market-survivor1.firebaseapp.com",
+  databaseURL: "https://stock-market-survivor1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "stock-market-survivor1",
+  storageBucket: "stock-market-survivor1.firebasestorage.app",
+  messagingSenderId: "1087443921138",
+  appId: "1:1087443921138:web:489d66bf14415ba3b3486b",
+  measurementId: "G-C23W8MB1WD"
+        };
+
+        let db;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch (error) {
+            console.log("Firebase 초기화 실패 - 오프라인 모드로 실행됩니다.");
+        }
+
+        // 게임 상태
+        const gameState = {
+            mode: 'single',
+            playerName: '',
+            playerId: '',
+            currentDay: 1,
+            cash: 10000000,
+            portfolio: {},
+            stocks: [],
+            selectedStock: null,
+            tradeCount: 0,
+            maxTrades: 20,
+            assetHistory: [10000000],
+            tradeHistory: [],
+            eventHistory: [],
+            roomCode: null,
+            opponents: {},
+            aiPlayer: null,
+            isPaused: false
+        };
+
+        // 주식 데이터 초기화
+        const stockTemplates = [
+            { name: '테크코리아', symbol: 'TECH', basePrice: 50000, volatility: 0.08, sector: 'technology' },
+            { name: '에너지플러스', symbol: 'ENRG', basePrice: 30000, volatility: 0.12, sector: 'energy' },
+            { name: '금융그룹', symbol: 'FIN', basePrice: 40000, volatility: 0.05, sector: 'finance' },
+            { name: '제조산업', symbol: 'MNFG', basePrice: 35000, volatility: 0.06, sector: 'manufacturing' },
+            { name: '바이오헬스', symbol: 'BIO', basePrice: 60000, volatility: 0.15, sector: 'bio' }
+        ];
+
+        function initStocks() {
+            gameState.stocks = stockTemplates.map(template => ({
+                ...template,
+                price: template.basePrice,
+                priceHistory: [template.basePrice],
+                change: 0,
+                changePercent: 0,
+                ma5: template.basePrice,
+                ma20: template.basePrice,
+                rsi: 50
+            }));
+        }
+
+        // 차트 초기화
+        let priceChart;
+        function initChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [1],
+                    datasets: gameState.stocks.map((stock, idx) => ({
+                        label: stock.name,
+                        data: [stock.price],
+                        borderColor: `hsl(${idx * 72}, 70%, 50%)`,
+                        tension: 0.4,
+                        hidden: idx > 0
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            labels: { color: '#e0e0e0' },
+                            onClick: (e, legendItem, legend) => {
+                                const index = legendItem.datasetIndex;
+                                const chart = legend.chart;
+                                const meta = chart.getDatasetMeta(index);
+                                meta.hidden = !meta.hidden;
+                                chart.update();
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        x: { 
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 모드 탭 전환
+        function showModeTab(mode) {
+            document.querySelectorAll('.mode-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(mode + 'Mode').classList.remove('hidden');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // 게임 시작
+        function startGame(mode) {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name) {
+                alert('이름을 입력해주세요!');
+                return;
+            }
+
+            gameState.mode = mode;
+            gameState.playerName = name;
+            gameState.playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+            if (mode === 'ai') {
+                const difficulty = document.getElementById('aiDifficulty').value;
+                const style = document.getElementById('aiStyle').value;
+                initAI(difficulty, style);
+            }
+
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+            document.getElementById('playerNameDisplay').textContent = name;
+
+            if (mode === 'multi') {
+                document.getElementById('opponentSection').classList.remove('hidden');
+            }
+
+            initStocks();
+            initChart();
+            renderStockList();
+            updateDisplay();
+            startGameLoop();
+        }
+
+        // 방 생성
+        function createRoom() {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name) {
+                alert('이름을 입력해주세요!');
+                return;
+            }
+
+            if (!db) {
+                alert('Firebase가 설정되지 않았습니다. Firebase 설정을 완료해주세요.');
+                return;
+            }
+
+            const roomCode = String(Math.floor(1000 + Math.random() * 9000));
+            gameState.roomCode = roomCode;
+            gameState.playerName = name;
+            gameState.playerId = 'player_' + Date.now();
+
+            db.ref('rooms/' + roomCode).set({
+                host: gameState.playerId,
+                status: 'waiting',
+                createdAt: Date.now(),
+                players: {
+                    [gameState.playerId]: {
+                        name: name,
+                        assets: 10000000,
+                        ready: true
+                    }
+                }
+            }).then(() => {
+                document.getElementById('roomCodeDisplay').textContent = roomCode;
+                document.getElementById('roomWaitModal').style.display = 'flex';
+                listenToRoom(roomCode);
+            });
+        }
+
+        // 방 참여
+        function joinRoom() {
+            const name = document.getElementById('playerName').value.trim();
+            const roomCode = document.getElementById('roomCodeInput').value.trim();
+            
+            if (!name || !roomCode) {
+                alert('이름과 방 코드를 입력해주세요!');
+                return;
+            }
+
+            if (!db) {
+                alert('Firebase가 설정되지 않았습니다.');
+                return;
+            }
+
+            db.ref('rooms/' + roomCode).once('value').then(snapshot => {
+                if (!snapshot.exists()) {
+                    alert('존재하지 않는 방입니다!');
+                    return;
+                }
+
+                const room = snapshot.val();
+                if (room.status !== 'waiting') {
+                    alert('이미 시작된 방입니다!');
+                    return;
+                }
+
+                const playerCount = Object.keys(room.players || {}).length;
+                if (playerCount >= 4) {
+                    alert('방이 가득 찼습니다!');
+                    return;
+                }
+
+                gameState.roomCode = roomCode;
+                gameState.playerName = name;
+                gameState.playerId = 'player_' + Date.now();
+
+                db.ref('rooms/' + roomCode + '/players/' + gameState.playerId).set({
+                    name: name,
+                    assets: 10000000,
+                    ready: false
+                }).then(() => {
+                    document.getElementById('roomCodeDisplay').textContent = roomCode;
+                    document.getElementById('roomWaitModal').style.display = 'flex';
+                    listenToRoom(roomCode);
+                });
+            });
+        }
+
+        // 방 상태 리스닝
+        function listenToRoom(roomCode) {
+            db.ref('rooms/' + roomCode).on('value', snapshot => {
+                const room = snapshot.val();
+                if (!room) return;
+
+                const playerListHtml = Object.entries(room.players).map(([id, player]) => 
+                    `<div class="opponent-item">
+                        <span>${player.name}</span>
+                        <span>${player.ready ? '✓' : '대기중'}</span>
+                    </div>`
+                ).join('');
+                document.getElementById('roomPlayerList').innerHTML = playerListHtml;
+
+                if (room.status === 'playing') {
+                    closeModal('roomWaitModal');
+                    startGame('multi');
+                }
+
+                // 실시간 상대방 자산 업데이트
+                if (gameState.mode === 'multi') {
+                    updateOpponentList(room.players);
+                }
+            });
+        }
+
+        // 멀티플레이어 게임 시작
+        function startMultiplayerGame() {
+            if (!db) return;
+            db.ref('rooms/' + gameState.roomCode + '/status').set('playing');
+        }
+
+        // 상대방 목록 업데이트
+        function updateOpponentList(players) {
+            const opponentHtml = Object.entries(players)
+                .filter(([id]) => id !== gameState.playerId)
+                .map(([id, player]) => {
+                    const returnRate = ((player.assets - 10000000) / 10000000 * 100).toFixed(2);
+                    const colorClass = returnRate >= 0 ? 'profit' : 'loss';
+                    return `<div class="opponent-item">
+                        <div>
+                            <div>${player.name}</div>
+                            <div style="font-size: 0.9em; color: #999;">자산: ${formatNumber(player.assets)}원</div>
+                        </div>
+                        <div class="${colorClass}">${returnRate}%</div>
+                    </div>`;
+                }).join('');
+            document.getElementById('opponentList').innerHTML = opponentHtml || '<p>다른 플레이어가 없습니다.</p>';
+        }
+
+        // AI 초기화
+        function initAI(difficulty, style) {
+            gameState.aiPlayer = {
+                name: 'AI ' + style.toUpperCase(),
+                difficulty: difficulty,
+                style: style,
+                cash: 10000000,
+                portfolio: {},
+                assets: 10000000
+            };
+        }
+
+        // AI 거래 로직
+        function aiTrade() {
+            if (!gameState.aiPlayer) return;
+
+            const ai = gameState.aiPlayer;
+            let tradeProbability = 0.1;
+            
+            if (ai.difficulty === 'intermediate') tradeProbability = 0.3;
+            if (ai.difficulty === 'expert') tradeProbability = 0.5;
+
+            if (Math.random() > tradeProbability) return;
+
+            const stock = selectAIStock(ai);
+            if (!stock) return;
+
+            const action = Math.random() > 0.5 ? 'buy' : 'sell';
+            const maxAmount = Math.floor(ai.cash / stock.price);
+            
+            if (action === 'buy' && maxAmount > 0) {
+                const amount = Math.ceil(maxAmount * (0.1 + Math.random() * 0.3));
+                const cost = amount * stock.price;
+                if (cost <= ai.cash) {
+                    ai.cash -= cost;
+                    ai.portfolio[stock.symbol] = (ai.portfolio[stock.symbol] || 0) + amount;
+                }
+            } else if (action === 'sell' && ai.portfolio[stock.symbol]) {
+                const amount = Math.ceil(ai.portfolio[stock.symbol] * (0.3 + Math.random() * 0.5));
+                ai.cash += amount * stock.price;
+                ai.portfolio[stock.symbol] -= amount;
+                if (ai.portfolio[stock.symbol] <= 0) delete ai.portfolio[stock.symbol];
+            }
+
+            ai.assets = calculateAIAssets();
+        }
+
+        function selectAIStock(ai) {
+            if (ai.difficulty === 'beginner') {
+                return gameState.stocks[Math.floor(Math.random() * gameState.stocks.length)];
+            }
+
+            let candidates = gameState.stocks.filter(stock => {
+                if (ai.style === 'buffett') {
+                    const pe = stock.price / 1000;
+                    return pe < 50 && stock.ma20 < stock.price;
+                } else if (ai.style === 'lynch') {
+                    return stock.changePercent > 2;
+                } else {
+                    return stock.volatility > 0.1;
+                }
+            });
+
+            if (candidates.length === 0) candidates = gameState.stocks;
+
+            if (ai.difficulty === 'expert') {
+                candidates = candidates.filter(s => {
+                    if (s.rsi < 30) return true;
+                    if (s.rsi > 70) return false;
+                    return s.ma5 > s.ma20;
+                });
+            }
+
+            return candidates[Math.floor(Math.random() * candidates.length)];
+        }
+
+        function calculateAIAssets() {
+            let total = gameState.aiPlayer.cash;
+            for (let symbol in gameState.aiPlayer.portfolio) {
+                const stock = gameState.stocks.find(s => s.symbol === symbol);
+                total += gameState.aiPlayer.portfolio[symbol] * stock.price;
+            }
+            return total;
+        }
+
+        // 주식 목록 렌더링
+        function renderStockList() {
+            const html = gameState.stocks.map(stock => {
+                const changeClass = stock.change >= 0 ? 'profit' : 'loss';
+                const changeSign = stock.change >= 0 ? '+' : '';
+                return `
+                    <div class="stock-item ${gameState.selectedStock?.symbol === stock.symbol ? 'selected' : ''}" 
+                         onclick="selectStock('${stock.symbol}')">
+                        <div class="stock-info">
+                            <div class="stock-name">${stock.name} (${stock.symbol})</div>
+                            <div class="stock-price">${formatNumber(stock.price)}원</div>
+                            <div class="stock-change ${changeClass}">
+                                ${changeSign}${formatNumber(stock.change)}원 (${changeSign}${stock.changePercent.toFixed(2)}%)
+                            </div>
+                            <div class="indicators">
+                                MA5: ${formatNumber(Math.round(stock.ma5))} | 
+                                MA20: ${formatNumber(Math.round(stock.ma20))} | 
+                                RSI: ${stock.rsi.toFixed(1)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('stockList').innerHTML = html;
+        }
+
+        // 주식 선택
+        function selectStock(symbol) {
+            gameState.selectedStock = gameState.stocks.find(s => s.symbol === symbol);
+            renderStockList();
+            updateSelectedStockInfo();
+        }
+
+        function updateSelectedStockInfo() {
+            if (!gameState.selectedStock) return;
+            const stock = gameState.selectedStock;
+            const owned = gameState.portfolio[stock.symbol] || 0;
+            document.getElementById('selectedStockInfo').innerHTML = `
+                <h3>${stock.name}</h3>
+                <p>현재가: ${formatNumber(stock.price)}원</p>
+                <p>보유: ${owned}주</p>
+            `;
+        }
+
+        // 거래 실행
+        function executeTrade(type) {
+            if (gameState.tradeCount >= gameState.maxTrades) {
+                alert('오늘의 거래 한도를 초과했습니다!');
+                return;
+            }
+
+            if (!gameState.selectedStock) {
+                alert('주식을 선택해주세요!');
+                return;
+            }
+
+            const amount = parseInt(document.getElementById('tradeAmount').value);
+            if (!amount || amount <= 0) {
+                alert('수량을 입력해주세요!');
+                return;
+            }
+
+            const stock = gameState.selectedStock;
+            const leverage = parseFloat(document.querySelector('input[name="leverage"]:checked').value);
+            const effectiveAmount = Math.floor(amount * leverage);
+
+            if (type === 'buy') {
+                const cost = effectiveAmount * stock.price;
+                if (cost > gameState.cash) {
+                    alert('자금이 부족합니다!');
+                    return;
+                }
+                gameState.cash -= cost;
+                gameState.portfolio[stock.symbol] = (gameState.portfolio[stock.symbol] || 0) + effectiveAmount;
+                addEvent(`${stock.name} ${effectiveAmount}주 매수 (${leverage}배 레버리지)`, 'positive');
+            } else if (type === 'sell') {
+                const owned = gameState.portfolio[stock.symbol] || 0;
+                if (amount > owned) {
+                    alert('보유 수량이 부족합니다!');
+                    return;
+                }
+                gameState.cash += amount * stock.price;
+                gameState.portfolio[stock.symbol] -= amount;
+                if (gameState.portfolio[stock.symbol] <= 0) {
+                    delete gameState.portfolio[stock.symbol];
+                }
+                addEvent(`${stock.name} ${amount}주 매도`, 'positive');
+            } else if (type === 'short') {
+                gameState.portfolio[stock.symbol] = (gameState.portfolio[stock.symbol] || 0) - effectiveAmount;
+                gameState.cash += effectiveAmount * stock.price;
+                addEvent(`${stock.name} ${effectiveAmount}주 공매도 (${leverage}배 레버리지)`, 'negative');
+            }
+
+            gameState.tradeCount++;
+            gameState.tradeHistory.push({
+                day: gameState.currentDay,
+                type: type,
+                stock: stock.symbol,
+                amount: effectiveAmount,
+                price: stock.price,
+                leverage: leverage
+            });
+
+            document.getElementById('tradeAmount').value = '';
+            updateDisplay();
+        }
+
+        function setMaxAmount() {
+            if (!gameState.selectedStock) return;
+            const maxBuy = Math.floor(gameState.cash / gameState.selectedStock.price);
+            document.getElementById('tradeAmount').value = maxBuy;
+        }
+
+        // 시장 업데이트
+        function updateMarket() {
+            // 랜덤 이벤트 생성
+            if (Math.random() < 0.3) {
+                generateMarketEvent();
+            }
+
+            // 주가 업데이트
+            gameState.stocks.forEach(stock => {
+                const randomChange = (Math.random() - 0.5) * stock.volatility;
+                const trend = (stock.ma5 > stock.ma20) ? 0.02 : -0.02;
+                const change = randomChange + trend;
+                
+                const oldPrice = stock.price;
+                stock.price = Math.max(1000, Math.round(stock.price * (1 + change)));
+                stock.change = stock.price - oldPrice;
+                stock.changePercent = (stock.change / oldPrice) * 100;
+                
+                stock.priceHistory.push(stock.price);
+                if (stock.priceHistory.length > 30) stock.priceHistory.shift();
+
+                // 기술적 지표 계산
+                stock.ma5 = calculateMA(stock.priceHistory, 5);
+                stock.ma20 = calculateMA(stock.priceHistory, 20);
+                stock.rsi = calculateRSI(stock.priceHistory, 14);
+            });
+
+            // 차트 업데이트
+            priceChart.data.labels.push(gameState.currentDay);
+            gameState.stocks.forEach((stock, idx) => {
+                priceChart.data.datasets[idx].data.push(stock.price);
+            });
+            if (priceChart.data.labels.length > 30) {
+                priceChart.data.labels.shift();
+                priceChart.data.datasets.forEach(ds => ds.data.shift());
+            }
+            priceChart.update('none');
+
+            renderStockList();
+        }
+
+        function generateMarketEvent() {
+            const events = [
+                { text: '정부 경기부양책 발표! 시장 전체 상승', type: 'positive', impact: 0.05 },
+                { text: '금리 인상 소식, 시장 하락 압력', type: 'negative', impact: -0.04 },
+                { text: '기술주 실적 호조, 기술 섹터 상승', type: 'positive', impact: 0.08, sector: 'technology' },
+                { text: '유가 급등, 에너지 섹터 강세', type: 'positive', impact: 0.1, sector: 'energy' },
+                { text: '금융 규제 강화 우려', type: 'negative', impact: -0.06, sector: 'finance' },
+                { text: '바이오 신약 개발 성공!', type: 'positive', impact: 0.15, sector: 'bio' },
+                { text: '무역 분쟁 심화 우려', type: 'negative', impact: -0.05 },
+                { text: '시장 안정세 유지', type: 'neutral', impact: 0 }
+            ];
+
+            const event = events[Math.floor(Math.random() * events.length)];
+            addEvent(event.text, event.type);
+
+            gameState.stocks.forEach(stock => {
+                if (!event.sector || stock.sector === event.sector) {
+                    stock.price = Math.round(stock.price * (1 + event.impact));
+                }
+            });
+        }
+
+        function calculateMA(prices, period) {
+            if (prices.length < period) return prices[prices.length - 1];
+            const slice = prices.slice(-period);
+            return slice.reduce((a, b) => a + b, 0) / period;
+        }
+
+        function calculateRSI(prices, period = 14) {
+            if (prices.length < period + 1) return 50;
+            
+            let gains = 0, losses = 0;
+            for (let i = prices.length - period; i < prices.length; i++) {
+                const change = prices[i] - prices[i - 1];
+                if (change > 0) gains += change;
+                else losses += Math.abs(change);
+            }
+            
+            const avgGain = gains / period;
+            const avgLoss = losses / period;
+            if (avgLoss === 0) return 100;
+            
+            const rs = avgGain / avgLoss;
+            return 100 - (100 / (1 + rs));
+        }
+
+        function addEvent(text, type) {
+            gameState.eventHistory.unshift({ day: gameState.currentDay, text, type });
+            if (gameState.eventHistory.length > 20) gameState.eventHistory.pop();
+            
+            const eventHtml = gameState.eventHistory.map(e => 
+                `<div class="event-item event-${e.type}">Day ${e.day}: ${e.text}</div>`
+            ).join('');
+            document.getElementById('eventList').innerHTML = eventHtml;
+        }
+
+        // 디스플레이 업데이트
+        function updateDisplay() {
+            const totalAssets = calculateTotalAssets();
+            const returnRate = ((totalAssets - 10000000) / 10000000) * 100;
+            
+            document.getElementById('currentDay').textContent = gameState.currentDay;
+            document.getElementById('totalAssets').textContent = formatNumber(totalAssets) + '원';
+            document.getElementById('returnRate').textContent = returnRate.toFixed(2) + '%';
+            document.getElementById('returnRate').className = 'stat-value ' + (returnRate >= 0 ? 'profit' : 'loss');
+            document.getElementById('cash').textContent = formatNumber(gameState.cash) + '원';
+            document.getElementById('tradeCount').textContent = `${gameState.tradeCount}/${gameState.maxTrades}`;
+
+            // 포트폴리오
+            const portfolioHtml = Object.entries(gameState.portfolio)
+                .filter(([_, amount]) => amount !== 0)
+                .map(([symbol, amount]) => {
+                    const stock = gameState.stocks.find(s => s.symbol === symbol);
+                    const value = amount * stock.price;
+                    const isShort = amount < 0;
+                    return `
+                        <div class="portfolio-item">
+                            <div>
+                                <strong>${stock.name}</strong>
+                                <span style="color: ${isShort ? '#ff4757' : '#00ff88'}">
+                                    ${isShort ? '공매도 ' : ''}${Math.abs(amount)}주
+                                </span>
+                            </div>
+                            <div>${formatNumber(value)}원</div>
+                        </div>
+                    `;
+                }).join('');
+            document.getElementById('portfolioList').innerHTML = portfolioHtml || '<p>보유 주식이 없습니다.</p>';
+
+            updateSelectedStockInfo();
+
+            // 멀티플레이어 자산 업데이트
+            if (gameState.mode === 'multi' && gameState.roomCode && db) {
+                db.ref(`rooms/${gameState.roomCode}/players/${gameState.playerId}/assets`).set(totalAssets);
+            }
+        }
+
+        function calculateTotalAssets() {
+            let total = gameState.cash;
+            for (let symbol in gameState.portfolio) {
+                const stock = gameState.stocks.find(s => s.symbol === symbol);
+                total += gameState.portfolio[symbol] * stock.price;
+            }
+            return total;
+        }
+
+        function formatNumber(num) {
+            return Math.round(num).toLocaleString('ko-KR');
+        }
+
+        // 게임 루프
+        let gameInterval;
+        function startGameLoop() {
+            gameInterval = setInterval(() => {
+                if (gameState.isPaused) return;
+
+                gameState.currentDay++;
+                gameState.tradeCount = 0;
+
+                updateMarket();
+                
+                if (gameState.mode === 'ai') {
+                    aiTrade();
+                }
+
+                const totalAssets = calculateTotalAssets();
+                gameState.assetHistory.push(totalAssets);
+
+                updateDisplay();
+
+                if (gameState.currentDay > 30) {
+                    endGame();
+                }
+            }, 10000); // 10초 = 1일
+        }
+
+        // 게임 종료
+        function endGame() {
+            clearInterval(gameInterval);
+            gameState.isPaused = true;
+
+            const finalAssets = calculateTotalAssets();
+            const returnRate = ((finalAssets - 10000000) / 10000000) * 100;
+            
+            // 통계 계산
+            const stats = calculateStatistics();
+            
+            // 결과 표시
+            const resultHtml = `
+                <h3>${returnRate >= 0 ? '수익 달성! 🎉' : '손실 발생 😢'}</h3>
+                <div style="margin: 20px 0;">
+                    <p><strong>최종 자산:</strong> ${formatNumber(finalAssets)}원</p>
+                    <p><strong>수익률:</strong> <span class="${returnRate >= 0 ? 'profit' : 'loss'}">${returnRate.toFixed(2)}%</span></p>
+                    <p><strong>MDD(최대낙폭):</strong> ${stats.mdd.toFixed(2)}%</p>
+                    <p><strong>승률:</strong> ${stats.winRate.toFixed(2)}%</p>
+                    <p><strong>샤프 지수:</strong> ${stats.sharpeRatio.toFixed(2)}</p>
+                    <p><strong>거래 횟수:</strong> ${gameState.tradeHistory.length}회</p>
+                </div>
+                ${gameState.mode === 'ai' ? `
+                    <h4>AI 대전 결과</h4>
+                    <p>AI 최종 자산: ${formatNumber(gameState.aiPlayer.assets)}원</p>
+                    <p>${finalAssets > gameState.aiPlayer.assets ? '승리! 🏆' : '패배 😔'}</p>
+                ` : ''}
+            `;
+            document.getElementById('resultContent').innerHTML = resultHtml;
+
+            // 결과 차트
+            drawResultChart();
+
+            // Firebase에 저장
+            saveResults(finalAssets, returnRate, stats);
+
+            document.getElementById('resultModal').style.display = 'flex';
+        }
+
+        function calculateStatistics() {
+            // MDD 계산
+            let maxAsset = gameState.assetHistory[0];
+            let maxDrawdown = 0;
+            gameState.assetHistory.forEach(asset => {
+                if (asset > maxAsset) maxAsset = asset;
+                const drawdown = ((maxAsset - asset) / maxAsset) * 100;
+                if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+            });
+
+            // 승률 계산
+            const profitTrades = gameState.tradeHistory.filter(trade => {
+                const stock = gameState.stocks.find(s => s.symbol === trade.stock);
+                const currentPrice = stock.price;
+                if (trade.type === 'buy') return currentPrice > trade.price;
+                if (trade.type === 'sell') return currentPrice < trade.price;
+                return false;
+            }).length;
+            const winRate = gameState.tradeHistory.length > 0 
+                ? (profitTrades / gameState.tradeHistory.length) * 100 : 0;
+
+            // 샤프 지수 계산
+            const returns = [];
+            for (let i = 1; i < gameState.assetHistory.length; i++) {
+                returns.push((gameState.assetHistory[i] - gameState.assetHistory[i-1]) / gameState.assetHistory[i-1]);
+            }
+            const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const variance = returns.reduce((a, b) => a + Math.pow(b - avgReturn, 2), 0) / returns.length;
+            const stdDev = Math.sqrt(variance);
+            const sharpeRatio = stdDev > 0 ? (avgReturn - 0.02/30) / stdDev : 0;
+
+            return { mdd: maxDrawdown, winRate, sharpeRatio };
+        }
+
+        function drawResultChart() {
+            const ctx = document.getElementById('resultChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: gameState.assetHistory.map((_, i) => `Day ${i}`),
+                    datasets: [{
+                        label: '자산 변화',
+                        data: gameState.assetHistory,
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#e0e0e0' } }
+                    },
+                    scales: {
+                        y: { ticks: { color: '#e0e0e0' } },
+                        x: { ticks: { color: '#e0e0e0' } }
+                    }
+                }
+            });
+        }
+
+        function saveResults(finalAssets, returnRate, stats) {
+            if (!db) {
+                console.log('Firebase 미설정 - 결과 저장 생략');
+                return;
+            }
+
+            const resultData = {
+                playerName: gameState.playerName,
+                playerId: gameState.playerId,
+                mode: gameState.mode,
+                finalAssets: finalAssets,
+                returnRate: returnRate,
+                mdd: stats.mdd,
+                winRate: stats.winRate,
+                sharpeRatio: stats.sharpeRatio,
+                trades: gameState.tradeHistory.length,
+                timestamp: Date.now()
+            };
+
+            // 전체 순위 저장
+            db.ref('rankings/overall/' + gameState.playerId).set({
+                name: gameState.playerName,
+                return: returnRate,
+                timestamp: Date.now()
+            });
+
+            // 주간 순위 저장
+            db.ref('rankings/weekly/' + gameState.playerId).set({
+                name: gameState.playerName,
+                return: returnRate,
+                timestamp: Date.now()
+            });
+
+            // 친구 대결 결과 저장
+            if (gameState.mode === 'multi' && gameState.roomCode) {
+                db.ref('rankings/friends/' + gameState.roomCode + '/' + gameState.playerId).set({
+                    name: gameState.playerName,
+                    return: returnRate,
+                    timestamp: Date.now()
+                });
+            }
+
+            // 상세 결과 저장
+            db.ref('results/' + gameState.playerId + '/' + Date.now()).set(resultData);
+        }
+
+        // 랭킹 표시
+        function showRankings() {
+            document.getElementById('rankingModal').style.display = 'flex';
+            showRankingTab('overall');
+        }
+
+        function showRankingTab(type) {
+            document.querySelectorAll('#rankingModal .tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (!db) {
+                document.getElementById('rankingContent').innerHTML = '<p>Firebase가 설정되지 않았습니다.</p>';
+                return;
+            }
+
+            const path = type === 'overall' ? 'rankings/overall' : 
+                         type === 'weekly' ? 'rankings/weekly' : 
+                         'rankings/friends';
+
+            db.ref(path).orderByChild('return').limitToLast(50).once('value').then(snapshot => {
+                const rankings = [];
+                snapshot.forEach(child => {
+                    rankings.push({ id: child.key, ...child.val() });
+                });
+                rankings.reverse();
+
+                const html = rankings.map((rank, index) => {
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                    const colorClass = rank.return >= 0 ? 'profit' : 'loss';
+                    return `
+                        <div class="ranking-item">
+                            <span><span class="ranking-medal">${medal}</span>${index + 1}. ${rank.name}</span>
+                            <span class="${colorClass}">${rank.return.toFixed(2)}%</span>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('rankingContent').innerHTML = html || '<p>랭킹 데이터가 없습니다.</p>';
+            });
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // 로컬 스토리지 저장/불러오기
+        function saveGameState() {
+            localStorage.setItem('stockGameState', JSON.stringify(gameState));
+        }
+
+        function loadGameState() {
+            const saved = localStorage.getItem('stockGameState');
+            if (saved) {
+                const loaded = JSON.parse(saved);
+                if (loaded.currentDay <= 30) {
+                    return confirm('저장된 게임을 불러오시겠습니까?') ? loaded : null;
+                }
+            }
+            return null;
+        }
+
+        // 주기적 저장
+        setInterval(() => {
+            if (gameState.currentDay > 0 && gameState.currentDay <= 30) {
+                saveGameState();
+            }
+        }, 30000);
+    </script>
+</body>
+</html>
